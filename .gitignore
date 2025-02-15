@@ -1,4 +1,58 @@
-node_modules/
-users.db
-.env
-.DS_Store
+const express = require("express");
+const sqlite3 = require("sqlite3").verbose();
+const cors = require("cors");
+const bodyParser = require("body-parser");
+
+const app = express();
+const db = new sqlite3.Database("users.db");
+
+app.use(cors());
+app.use(bodyParser.json());
+
+// Создаем таблицу пользователей
+ db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    telegram_id TEXT UNIQUE,
+    first_name TEXT,
+    last_name TEXT,
+    username TEXT,
+    photo_url TEXT
+)`);
+
+// Эндпоинт для сохранения данных пользователя
+app.post("/register", (req, res) => {
+    const { id, first_name, last_name, username, photo_url } = req.body;
+
+    db.run(`INSERT INTO users (telegram_id, first_name, last_name, username, photo_url)
+            VALUES (?, ?, ?, ?, ?) 
+            ON CONFLICT(telegram_id) DO UPDATE SET
+            first_name = excluded.first_name,
+            last_name = excluded.last_name,
+            username = excluded.username,
+            photo_url = excluded.photo_url`,
+        [id, first_name, last_name, username, photo_url],
+        (err) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).json({ error: "Ошибка при регистрации пользователя" });
+            }
+            res.json({ message: "Пользователь зарегистрирован" });
+        }
+    );
+});
+
+// Эндпоинт для получения всех пользователей
+app.get("/users", (req, res) => {
+    db.all("SELECT * FROM users", [], (err, rows) => {
+        if (err) {
+            console.error(err.message);
+            return res.status(500).json({ error: "Ошибка получения пользователей" });
+        }
+        res.json(rows);
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Сервер запущен на порту ${PORT}`);
+});
